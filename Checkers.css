@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tevin’s Board — Playable Checkers</title>
+  <style>
+    :root{
+      --square: 72px;
+      --light: #f0d9b5;
+      --dark: #8b5a2b; /* walnut */
+      --red: #ef4444;
+      --black: #111827;
+      --accent: #34d399;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; padding:24px; display:flex; justify-content:center; background:radial-gradient(1200px 800px at 20% 10%, #f6f8fb, #e9eef5); color:#111827; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif
+    }
+    .app{display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap}
+    h1{margin:0 0 12px; font-size:28px; color:#2f855a}
+    .panel{display:flex; flex-direction:column; gap:12px; min-width:260px}
+
+    .board{
+      display:grid; grid-template-columns:repeat(8,var(--square)); grid-template-rows:repeat(8,var(--square));
+      border-radius:18px; overflow:hidden; border:2px solid #e5e7eb; box-shadow:0 16px 40px rgba(0,0,0,.15); background:#111827
+    }
+    .square{ width:var(--square); height:var(--square); display:flex; align-items:center; justify-content:center; user-select:none; position:relative }
+    .light{ background:var(--light) }
+    .dark{ background:var(--dark) }
+    .square:hover{ outline:2px solid rgba(0,0,0,.1); cursor:pointer }
+    .square.selected{ outline:3px solid var(--accent); box-shadow: inset 0 0 0 4px rgba(255,255,255,.3) }
+    .hint{ width:18px; height:18px; border-radius:50%; background:rgba(52,211,153,.65) }
+    .capture{ position:relative }
+    .capture::after{ content:""; position:absolute; inset:6px; border:4px solid rgba(239,68,68,.9); border-radius:50% }
+
+    .piece{ width:calc(var(--square) * .7); height:calc(var(--square) * .7); border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:900; color:white; letter-spacing:.5px; filter: drop-shadow(0 1px 0 rgba(255,255,255,.25)); }
+    .piece.red{ background:linear-gradient(#ff6b6b,#d62828) }
+    .piece.black{ background:linear-gradient(#4b5563,#111827) }
+    .piece .crown{ font-size:calc(var(--square) * .35); }
+
+    .controls button{ padding:10px 14px; border-radius:12px; border:1px solid #d1d5db; background:white; box-shadow:0 1px 2px rgba(0,0,0,.05); font-weight:600 }
+    .controls button:hover{ background:#f9fafb }
+    .status{ padding:10px 14px; background:white; border:1px solid #e5e7eb; border-radius:12px }
+    .cap-wrap{ background:white; border:1px dashed #e5e7eb; padding:8px 10px; border-radius:10px; min-height:40px; display:flex; gap:6px; flex-wrap:wrap }
+
+    small{ color:#6b7280 }
+    @media (max-width:720px){ :root{ --square: 56px } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div>
+      <h1>Tevin’s Checkers</h1>
+      <div id="board" class="board" aria-label="Checkers board"></div>
+    </div>
+    <div class="panel">
+      <div class="status" id="status">Red to move</div>
+      <div class="controls">
+        <button id="reset">Reset</button>
+        <button id="flip">Flip board</button>
+      </div>
+      <div>
+        <div style="font-weight:700;margin-bottom:4px;">Captured by Red:</div>
+        <div id="capRed" class="cap-wrap"></div>
+      </div>
+      <div>
+        <div style="font-weight:700;margin-bottom:4px;">Captured by Black:</div>
+        <div id="capBlack" class="cap-wrap"></div>
+      </div>
+      <small> Work in progress. </small>
+    </div>
+  </div>
+
+  <script>
+    // Board is 8x8; playable squares are the dark ones ((r+c)%2==1)
+    // Colors: 'r' (red, starts at bottom) and 'b' (black, starts at top)
+    let board, turn, selected=null, legalTargets=[], orientation='red', chainLock=null; // chainLock holds {r,c} if must continue jumping
+    let capturedByRed=[], capturedByBlack=[];
+
+    const boardEl = document.getElementById('board');
+    const statusEl = document.getElementById('status');
+    const capREl = document.getElementById('capRed');
+    const capBEl = document.getElementById('capBlack');
+
+    function startingBoard(){
+      const b = Array.from({length:8},()=>Array(8).fill(null));
+      for(let r=0;r<3;r++){
+        for(let c=0;c<8;c++) if((r+c)%2===1) b[r][c] = { color:'b', king:false };
+      }
+      for(let r=5;r<8;r++){
+        for(let c=0;c<8;c++) if((r+c)%2===1) b[r][c] = { color:'r', king:false };
+      }
+      return b;
+    }
+
+    function reset(){
+      board = startingBoard();
+      turn = 'r';
+      selected=null; legalTargets=[]; chainLock=null;
+      capturedByRed=[]; capturedByBlack=[];
+      render();
+    }
+
+    function render(){
+      boardEl.innerHTML='';
+      const rows = orientation==='red' ? [...Array(8).keys()] : [...Array(8).keys()].reverse();
+      const cols = orientation==='red' ? [...Array(8).keys()] : [...Array(8).keys()].reverse();
+      for(const r of rows){
+        for(const c of cols){
+          const el = document.createElement('div');
+          el.className = 'square ' + (((r+c)%2===0)?'light':'dark');
+          el.dataset.r=r; el.dataset.c=c;
+          const piece = board[r][c];
+          if(piece){ el.appendChild(renderPiece(piece)); }
+          if(selected && selected.r===r && selected.c===c) el.classList.add('selected');
+          const hint = legalTargets.find(m=>m.r===r && m.c===c);
+          if(hint){
+            if(board[r][c]) el.classList.add('capture');
+            else { const dot=document.createElement('div'); dot.className='hint'; el.appendChild(dot); }
+          }
+          el.addEventListener('click', onSquareClick);
+          boardEl.appendChild(el);
+        }
+      }
+      const t = turn==='r'?'Red':'Black';
+      statusEl.textContent = chainLock? `${t} to move — continue jump` : `${t} to move`;
+      capREl.innerHTML = capturedByRed.map(renderMiniPiece).join('');
+      capBEl.innerHTML = capturedByBlack.map(renderMiniPiece).join('');
+    }
+
+    function renderPiece(p){
+      const wrap = document.createElement('div');
+      wrap.className = 'piece '+(p.color==='r'?'red':'black');
+      if(p.king){ const k=document.createElement('div'); k.className='crown'; k.textContent='\u265B'; wrap.appendChild(k); }
+      return wrap;
+    }
+
+    function renderMiniPiece(p){
+      const bg = p.color==='r'?'linear-gradient(#ff6b6b,#d62828)':'linear-gradient(#4b5563,#111827)';
+      return `<div style="width:22px;height:22px;border-radius:50%;background:${bg};display:inline-flex;align-items:center;justify-content:center;margin:2px;">${p.king?'\u265B':''}</div>`;
+    }
+
+    function onSquareClick(e){
+      const r = +e.currentTarget.dataset.r; const c = +e.currentTarget.dataset.c;
+      // ignore light squares
+      if(((r+c)%2)===0) return;
+      const piece = board[r][c];
+
+      if(!selected){
+        if(piece && piece.color===turn){
+          if(chainLock && (r!==chainLock.r || c!==chainLock.c)) return; // must keep jumping with the same piece
+          selected={r,c};
+          legalTargets = getLegalMoves(r,c);
+        }
+      } else {
+        if(selected.r===r && selected.c===c){ selected=null; legalTargets=[]; }
+        else {
+          const move = legalTargets.find(m=>m.r===r && m.c===c);
+          if(move){
+            const wasKing = board[selected.r][selected.c].king;
+            const madeCapture = !!move.capture;
+            doMove(selected.r, selected.c, r, c, move);
+            // Promotion check
+            const nowPiece = board[r][c];
+            const promoted = maybePromote(r, nowPiece);
+            if(madeCapture && !promoted){
+              // can we continue jumping with this same piece?
+              const moreCaps = getCapturesFor(r,c).length>0;
+              if(moreCaps){
+                chainLock = {r,c};
+                selected = {r,c};
+                legalTargets = getCapturesFor(r,c);
+                render();
+                return; // same turn continues
+              }
+            }
+            // end of turn
+            chainLock=null; selected=null; legalTargets=[]; turn = (turn==='r'?'b':'r');
+            // check for end
+            const winner = getWinner();
+            if(winner){ alert(`${winner==='r'?'Red':'Black'} wins!`); }
+          } else {
+            // Try selecting another piece if valid
+            if(piece && piece.color===turn){
+              if(chainLock && (r!==chainLock.r || c!==chainLock.c)) return;
+              selected={r,c};
+              legalTargets = getLegalMoves(r,c);
+            } else { selected=null; legalTargets=[]; }
+          }
+        }
+      }
+      render();
+    }
+
+    function doMove(r1,c1,r2,c2, move){
+      const p = board[r1][c1];
+      if(move.capture){
+        const { capR, capC } = move;
+        const captured = board[capR][capC];
+        if(captured){
+          if(p.color==='r') capturedByRed.push(captured); else capturedByBlack.push(captured);
+        }
+        board[capR][capC] = null;
+      }
+      board[r2][c2] = { ...p };
+      board[r1][c1] = null;
+    }
+
+    function maybePromote(r, p){
+      if(!p) return false;
+      const atBack = (p.color==='r' && r===0) || (p.color==='b' && r===7);
+      if(atBack && !p.king){ p.king = true; return true; }
+      return false;
+    }
+
+    function getWinner(){
+      const reds = countColor('r');
+      const blacks = countColor('b');
+      if(reds===0) return 'b';
+      if(blacks===0) return 'r';
+      const rHas = playerHasAnyMoves('r');
+      const bHas = playerHasAnyMoves('b');
+      if(!rHas) return 'b';
+      if(!bHas) return 'r';
+      return null;
+    }
+
+    function countColor(color){
+      let n=0; for(let r=0;r<8;r++) for(let c=0;c<8;c++) if(board[r][c]?.color===color) n++; return n;
+    }
+    function playerHasAnyMoves(color){
+      for(let r=0;r<8;r++) for(let c=0;c<8;c++){
+        const p = board[r][c];
+        if(p && p.color===color){ if(getLegalMoves(r,c).length>0) return true; }
+      }
+      return false;
+    }
+
+    function getLegalMoves(r,c){
+      const p = board[r][c]; if(!p) return [];
+      // If mid-chain, only captures from that one piece are allowed
+      if(chainLock && (r!==chainLock.r || c!==chainLock.c)) return [];
+
+      const allCapturesExist = anyCaptureAvailableFor(turn);
+      const captures = getCapturesFor(r,c);
+      if(allCapturesExist){ return captures; }
+      // otherwise normal moves
+      return getSlidesFor(r,c);
+    }
+
+    function anyCaptureAvailableFor(color){
+      for(let r=0;r<8;r++) for(let c=0;c<8;c++){
+        const p = board[r][c]; if(p && p.color===color){ if(getCapturesFor(r,c).length>0) return true; }
+      }
+      return false;
+    }
+
+    function dirsFor(p){
+      if(p.king) return [[-1,-1],[-1,1],[1,-1],[1,1]];
+      return p.color==='r' ? [[-1,-1],[-1,1]] : [[1,-1],[1,1]]; // red moves up, black moves down
+    }
+
+    function inBounds(r,c){ return r>=0 && r<8 && c>=0 && c<8; }
+
+    function getSlidesFor(r,c){
+      const p = board[r][c]; if(!p) return [];
+      const res=[]; for(const [dr,dc] of dirsFor(p)){
+        const rr=r+dr, cc=c+dc; if(inBounds(rr,cc) && !board[rr][cc]) res.push({r:rr,c:cc, capture:false});
+      } return res;
+    }
+
+    function getCapturesFor(r,c){
+      const p = board[r][c]; if(!p) return [];
+      const res=[]; for(const [dr,dc] of dirsFor(p)){
+        const mr=r+dr, mc=c+dc; const lr=r+2*dr, lc=c+2*dc;
+        if(inBounds(lr,lc) && inBounds(mr,mc)){
+          const mid = board[mr][mc];
+          if(mid && mid.color!==p.color && !board[lr][lc]){
+            res.push({r:lr,c:lc,capture:true,capR:mr,capC:mc});
+          }
+        }
+      } return res;
+    }
+
+    document.getElementById('reset').addEventListener('click', reset);
+    document.getElementById('flip').addEventListener('click', ()=>{ orientation = (orientation==='red'?'black':'red'); render(); });
+
+    reset();
+  </script>
+</body>
+</html>
