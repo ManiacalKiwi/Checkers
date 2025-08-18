@@ -73,8 +73,6 @@
   </div>
 
   <script>
-    // Board is 8x8; playable squares are the dark ones ((r+c)%2==1)
-    // Colors: 'r' (red, starts at bottom) and 'b' (black, starts at top)
     let board, turn, selected=null, legalTargets=[], orientation='red', chainLock=null; // chainLock holds {r,c} if must continue jumping
     let capturedByRed=[], capturedByBlack=[];
 
@@ -143,7 +141,6 @@
 
     function onSquareClick(e){
       const r = +e.currentTarget.dataset.r; const c = +e.currentTarget.dataset.c;
-      // ignore light squares
       if(((r+c)%2)===0) return;
       const piece = board[r][c];
 
@@ -161,27 +158,21 @@
             const wasKing = board[selected.r][selected.c].king;
             const madeCapture = !!move.capture;
             doMove(selected.r, selected.c, r, c, move);
-            // Promotion check
             const nowPiece = board[r][c];
             const promoted = maybePromote(r, nowPiece);
             if(madeCapture && !promoted){
-              // can we continue jumping with this same piece?
               const moreCaps = getCapturesFor(r,c).length>0;
               if(moreCaps){
                 chainLock = {r,c};
                 selected = {r,c};
                 legalTargets = getCapturesFor(r,c);
                 render();
-                return; // same turn continues
               }
             }
-            // end of turn
             chainLock=null; selected=null; legalTargets=[]; turn = (turn==='r'?'b':'r');
-            // check for end
             const winner = getWinner();
             if(winner){ alert(`${winner==='r'?'Red':'Black'} wins!`); }
           } else {
-            // Try selecting another piece if valid
             if(piece && piece.color===turn){
               if(chainLock && (r!==chainLock.r || c!==chainLock.c)) return;
               selected={r,c};
@@ -239,13 +230,11 @@
 
     function getLegalMoves(r,c){
       const p = board[r][c]; if(!p) return [];
-      // If mid-chain, only captures from that one piece are allowed
       if(chainLock && (r!==chainLock.r || c!==chainLock.c)) return [];
 
       const allCapturesExist = anyCaptureAvailableFor(turn);
       const captures = getCapturesFor(r,c);
       if(allCapturesExist){ return captures; }
-      // otherwise normal moves
       return getSlidesFor(r,c);
     }
 
@@ -290,4 +279,5 @@
   </script>
 </body>
 </html>
+
 
