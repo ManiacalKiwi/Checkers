@@ -8,7 +8,7 @@
     :root{
       --square: 72px;
       --light: #f0d9b5;
-      --dark: #8b5a2b; /* walnut */
+      --dark: #8b5a2b;
       --red: #ef4444;
       --black: #111827;
       --accent: #34d399;
@@ -258,7 +258,7 @@
 
     function dirsFor(p){
       if(p.king) return [[-1,-1],[-1,1],[1,-1],[1,1]];
-      return p.color==='r' ? [[-1,-1],[-1,1]] : [[1,-1],[1,1]]; // red moves up, black moves down
+      return p.color==='r' ? [[-1,-1],[-1,1]] : [[1,-1],[1,1]];
     }
 
     function inBounds(r,c){ return r>=0 && r<8 && c>=0 && c<8; }
@@ -290,3 +290,4 @@
   </script>
 </body>
 </html>
+
