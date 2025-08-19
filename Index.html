@@ -3,55 +3,42 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Game Setup — Player Entry Form</title>
-  <link rel="stylesheet" href="css/Checkers.css" />
+  <title>Tevin’s Checkers</title>
+  <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
-  <div class="card">
-    <h1>Game Setup</h1>
-    <p>Enter the player details below. Click <strong>Submit</strong> to output them into the area on this page.</p>
+  <div class="app">
+    <div>
+      <h1>Tevin’s Checkers</h1>
+      <div id="board" class="board" aria-label="Checkers board"></div>
+    </div>
 
-    <form id="setupForm">
-      <div class="row">
-        <label for="username">User Name</label>
-        <input id="username" name="username" type="text" placeholder="e.g., ninja" required />
+    <div class="panel">
+      <div class="status" id="status">Red to move</div>
+
+      <div class="controls">
+        <button id="reset">Reset</button>
+        <button id="flip">Flip board</button>
       </div>
 
-      <div class="row">
-        <label for="points">Point Total</label>
-        <input id="points" name="points" type="number" min="0" step="1" placeholder="e.g., 100" required />
+      <div>
+        <div style="font-weight:700;margin-bottom:4px;">Captured by Red:</div>
+        <div id="capRed" class="cap-wrap"></div>
       </div>
 
-      <div class="row">
-        <label for="health">Health/Damage</label>
-        <input id="health" name="health" type="number" min="0" step="1" placeholder="e.g., 50" required />
+      <div>
+        <div style="font-weight:700;margin-bottom:4px;">Captured by Black:</div>
+        <div id="capBlack" class="cap-wrap"></div>
       </div>
 
-      <div class="row">
-        <label for="weapons">Weapons</label>
-        <input id="weapons" name="weapons" type="text" placeholder="e.g., invisibility" required />
-      </div>
-
-      <div class="full actions">
-        <button class="btn primary" type="submit">Submit</button>
-        <button class="btn" type="button" id="clear">Clear</button>
-        <span class="note">All fields are required.</span>
-      </div>
-
-      <div class="full">
-        <label for="output">Output</label>
-        <textarea id="output" readonly placeholder="Submitted details will appear here...
-
-Example:
-User Name	ninja
-Weapons	invisibility
-Health/Damage	50
-Point Total	100"></textarea>
-      </div>
-    </form>
+      <small>
+        Rules: mandatory capture, multi-jumps, crowning at far row (crowning ends that move).
+        No draw detection or timer.
+      </small>
+    </div>
   </div>
 
-  <script src="js/Checkers.js" defer></script>
+  <script src="js/app.js" defer></script>
 </body>
 </html>
 
